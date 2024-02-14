@@ -1,0 +1,30 @@
+cabal-version:      2.4
+name:               whoopr
+version:            0.1.0.0
+
+-- A short (one-line) description of the package.
+-- synopsis:
+
+-- A longer description of the package.
+-- description:
+
+-- A URL where users can report bugs.
+-- bug-reports:
+
+-- The license under which the package is released.
+-- license:
+author:             Vojtech Balik
+maintainer:         balikvo1@fit.cvut.cz
+
+-- A copyright notice.
+-- copyright:
+-- category:
+extra-source-files: CHANGELOG.md
+
+library
+    exposed-modules:  Whoopr.Subscribers, Whoopr.ToByteString, Whoopr.TaskQueue, Whoopr.EventSender, Whoopr.Basic.SubscriptionAPI
+        Whoopr.Basic.RIOMonadListSubscriptions, Whoopr.Basic.Subscription
+    hs-source-dirs:   src
+    default-extensions: NoImplicitPrelude
+    build-depends:    base, protolude, time, servant, servant-server, servant-docs, aeson, wai, http-conduit, text, network-uri, uuid, async, bytestring, transformers-base
+    default-language: Haskell2010  
