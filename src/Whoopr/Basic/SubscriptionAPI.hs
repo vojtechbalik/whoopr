@@ -16,7 +16,6 @@ import Protolude
 import Servant.API
 import Servant
 import Network.URI
-import Control.Monad.Base
 import Data.Aeson.TH (deriveToJSON, defaultOptions, deriveFromJSON)
 import qualified Data.Text as T
 import Whoopr.Basic.Subscription
@@ -24,10 +23,10 @@ import Whoopr.Subscribers
 import Data.Aeson (ToJSON)
 import Data.Aeson.Types ( ToJSON(..), object, (.=) )
 
-type WebhookAPI = ReqBody '[JSON] ExtSubscription :> PostNoContent
-            :<|>                                       Get '[JSON] [BasicSubscription]
-            :<|>  Capture "userid" Int              :> Get '[JSON] BasicSubscription
-            :<|>  Capture "userid" Int              :> DeleteNoContent
+type WebhookAPI = "subscriptions" :> ( ReqBody '[JSON] ExtSubscription :> PostNoContent
+                                  :<|> Get '[JSON] [BasicSubscription] )
+             :<|> "subscription"  :>  Capture "userid" Int :> ( Get '[JSON] BasicSubscription
+                                                            :<|> DeleteNoContent )
 
 -- Encoding ByteStrings to JSON is not straightforward;
 --   JSON strings should be UTF8, but we know our values are ASCII.
@@ -53,7 +52,7 @@ webhookApiServer :: (MonadSubscriptions BasicSubscription m, MonadError ServerEr
 webhookApiServer f = hoistServer webhookApiProxy f webhookApiServerImpl
 
 webhookApiServerImpl :: (MonadSubscriptions BasicSubscription m, MonadError ServerError m) => ServerT WebhookAPI m
-webhookApiServerImpl = createSubscr :<|> getSubscrs :<|> getSubscr :<|> deleteSubscr
+webhookApiServerImpl = (createSubscr :<|> getSubscrs) :<|> (\id -> getSubscr id :<|> deleteSubscr id)
     where
         createSubscr ExtSubscription{..} = do
             uri <- case parseEndpointUrl endpointUrl of
@@ -81,11 +80,6 @@ webhookApiServerImpl = createSubscr :<|> getSubscrs :<|> getSubscr :<|> deleteSu
                                         then return $ encodeUtf8 txt
                                         else throwError $ err400 { errReasonPhrase = "Non-ascii characters in secret"}
 
-
-
--- subscriptionsApp :: (HasWebhooks env) => env -> Application
--- subscriptionsApp env = serve webhookApiProxy (webhookApiServer env)
-
 subscriptionsApp :: (MonadSubscriptions BasicSubscription m, MonadError ServerError m) => (forall a. m a -> Servant.Handler a) -> Application
 subscriptionsApp f = serve webhookApiProxy (webhookApiServer f)
 
@@ -93,6 +87,3 @@ parseEndpointUrl :: Text -> Either Text URI
 parseEndpointUrl t = case parseURI (T.unpack t) of
     Nothing  -> Left "Could not parse URI"
     Just uri -> Right uri
-
--- validateSubscription :: Subscription -> m Bool
--- validateSubscription s = _ -- TODO

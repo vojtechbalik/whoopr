@@ -29,10 +29,10 @@ instance (HasSubscriptionsList env s, MonadReader env m, MonadIO m, HasId s, Int
     createSubscription :: s -> m s
     createSubscription s = do
         ss <- liftIO . takeMVar . hslGetAllSubscriptions =<< ask
-        let freeId = 1 + getId (maximumBy (compare `on` getId) ss)
+        let freeId = if null ss then 1 else 1 +  getId (maximumBy (compare `on` getId) ss)
             s' = setId s freeId
             ss' = s':ss
-        liftIO . (`putMVar` ss') .hslGetAllSubscriptions =<< ask
+        liftIO . (`putMVar` ss') . hslGetAllSubscriptions =<< ask
         return s'
 
     deleteSubscription :: IdType s -> m (Maybe s)
@@ -42,4 +42,5 @@ instance (HasSubscriptionsList env s, MonadReader env m, MonadIO m, HasId s, Int
                 (\s (r, acc) -> if getId s == id then (Just s, acc) else (Nothing, s:acc))
                 (Nothing, [])
                 ss
+        liftIO . (`putMVar` ss') . hslGetAllSubscriptions =<< ask
         return removed

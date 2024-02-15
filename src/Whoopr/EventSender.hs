@@ -14,12 +14,15 @@ import Whoopr.ToByteString
 import Network.HTTP.Simple (Header, getResponseStatusCode, httpLBS, setRequestMethod, setRequestBody)
 import qualified Data.ByteString as SBS
 import Whoopr.Subscribers
-import Network.HTTP.Client.Conduit (HttpException, requestFromURI_)
+import Network.HTTP.Client.Conduit (HttpException, requestFromURI_, Request (requestHeaders))
 import Data.UUID.V4 (nextRandom)
 import Data.UUID (toASCIIBytes)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Network.HTTP.Conduit (RequestBody(..))
 import Data.ByteString.Char8 (singleton)
+import Crypto.MAC.HMAC (hmacGetDigest, hmac)
+import Crypto.Hash (Digest, SHA256)
+import Data.ByteArray.Encoding (convertToBase, Base (Base64))
 
 taskRecvHelper :: (TaskQueueConsumer cq (Task fd)) => Proxy fd -> cq -> IO (Task fd)
 taskRecvHelper _ = tqRecv
@@ -54,6 +57,7 @@ data NotificationDelivery =
 
 data DynEventData where
     DynEventData :: ToByteString a => a -> DynEventData
+    RawData :: ByteString -> DynEventData
 
 data NotificationInitialization fd =
     NotificationInitialization {
@@ -109,18 +113,15 @@ makeNotificationDelivery s ed = do
 
 attemptEventDelivery :: NotificationDelivery -> IO Bool
 attemptEventDelivery nd@NotificationDelivery{..} = do
+    headers <- generateAttemptHeaders nd
     let req = setRequestMethod "POST"
                 $ setRequestBody (RequestBodyBS eventData)
                 -- not good, impure exceptions
                 $ requestFromURI_ endpointURI
-    -- careful, what about the headers that are already in the request by default?
-    headers <- generateAttemptHeaders nd
+    let req' = req{requestHeaders = requestHeaders req ++ headers}
 
-    let handler e = do
-            print e
-            return False
     catch
-        (do statusCode <- getResponseStatusCode <$> httpLBS req
+        (do statusCode <- getResponseStatusCode <$> httpLBS req'
             return (200 <= statusCode && statusCode < 300))
         (\e -> do print (e :: HttpException)
                   return False)
@@ -133,7 +134,8 @@ generateAttemptHeaders NotificationDelivery{..} = do
     let res = []
     timestamp <- show <$> getSecondsSinceEpoch
 
-    let res = ("webhook-timestamp", timestamp):("webhook-id", eventId):res
+    let res' = ("webhook-timestamp", timestamp):("webhook-id", eventId):res
     let toSign = SBS.intercalate (singleton '.') [eventId, timestamp, eventData]
-    -- TODO run it through hashing algo using crypton, encode it in base64?
-    return $ ("webhook-signature", toSign):res
+    return $ ("webhook-signature", "v1," <> generateHMACBase64 sharedSecret toSign):res'
+
+generateHMACBase64 key msg = convertToBase Base64 (hmacGetDigest $ hmac key msg :: Digest SHA256)

@@ -26,5 +26,5 @@ library
         Whoopr.Basic.RIOMonadListSubscriptions, Whoopr.Basic.Subscription
     hs-source-dirs:   src
     default-extensions: NoImplicitPrelude
-    build-depends:    base, protolude, time, servant, servant-server, servant-docs, aeson, wai, http-conduit, text, network-uri, uuid, async, bytestring, transformers-base
+    build-depends:    base, protolude, time, servant, servant-server, servant-docs, aeson, wai, http-conduit, text, network-uri, uuid, async, bytestring, crypton, memory
     default-language: Haskell2010  
